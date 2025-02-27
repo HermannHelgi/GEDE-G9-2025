@@ -1,5 +1,6 @@
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class PlayerController : NetworkBehaviour
 {
@@ -7,6 +8,11 @@ public class PlayerController : NetworkBehaviour
     public float mouseSensitivity = 2f;
     public float jumpForce = 5f;
     public float gravity = 9.81f;
+    public float raycastlength;
+    public GameObject playerCanvas;
+
+    public Image crosshairhorizontal;
+    public Image crosshairvertical;
 
     public CharacterController controller;
     private Vector3 velocity;
@@ -25,6 +31,7 @@ public class PlayerController : NetworkBehaviour
         else
         {
             playerCamera.SetActive(true);
+            playerCanvas.SetActive(true);
         }
     }
 
@@ -67,5 +74,19 @@ public class PlayerController : NetworkBehaviour
         // Gravity
         velocity.y -= gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+
+        crosshairhorizontal.color = Color.white;
+        crosshairvertical.color = Color.white;
+
+        RaycastHit hit;
+        if (Physics.Raycast(transform.position, transform.TransformDirection(Vector3.forward), out hit, raycastlength))
+        {
+            var script = hit.transform.GetComponent<PlayerController>();
+            if (script != null)
+            {
+                crosshairhorizontal.color = Color.red;
+                crosshairvertical.color = Color.red;
+            }
+        }
     }
 }
