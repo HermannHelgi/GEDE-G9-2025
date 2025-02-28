@@ -289,9 +289,9 @@ MonoBehaviour:
     m_InternalValue: 0
   gameWinners:
     m_InternalValue: 0
-  seekerPhaseTime: 10
-  hiderPhaseTime: 10
-  spawnPhaseTime: 5
+  seekerPhaseTime: 300
+  hiderPhaseTime: 30
+  spawnPhaseTime: 3
   displaywinnerPhaseTime: 10
 --- !u!4 &253008271
 Transform:
