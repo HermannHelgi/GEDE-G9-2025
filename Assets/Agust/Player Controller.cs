@@ -28,7 +28,18 @@ public class PlayerController : NetworkBehaviour
     private bool isGrounded;
     public GameObject playerCamera;
     private float verticalRotation = 0f;
-    Animator PlayerAnimation;
+
+    public Vector3 spawnLocation;
+    public float randomrange;
+    public ulong playerId;
+    public TextMeshProUGUI timer;
+    public GameObject blackout;
+    public float distanceLiableFromSpawn;
+    public Vector3 spawn;
+
+    public GameObject seekersWinDisplayText;
+    public GameObject hidersWinDisplayText;
+    public Animator PlayerAnimation;
 
     public override void OnNetworkSpawn()
     {
@@ -59,7 +70,6 @@ public class PlayerController : NetworkBehaviour
         {
             Cursor.lockState = CursorLockMode.Locked;
         }
-        PlayerAnimation = GetComponent<Animator>();
     }
     
     void Update()
