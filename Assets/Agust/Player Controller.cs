@@ -1,10 +1,19 @@
+using System;
+using TMPro;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class PlayerController : NetworkBehaviour
 {
+    public NetworkVariable<bool> IsSeeker = new NetworkVariable<bool>(
+        false, 
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server  
+    );
+
     public float speed = 5f;
+    public float seekerSpeed = 7f;
     public float mouseSensitivity = 2f;
     public float jumpForce = 5f;
     public float gravity = 9.81f;
@@ -20,11 +29,24 @@ public class PlayerController : NetworkBehaviour
     public GameObject playerCamera;
     private float verticalRotation = 0f;
 
+    public Vector3 spawnLocation;
+    public float randomrange;
+    public ulong playerId;
+    public TextMeshProUGUI timer;
+    public GameObject blackout;
+    public float distanceLiableFromSpawn;
+    public Vector3 spawn;
+
+    public GameObject seekersWinDisplayText;
+    public GameObject hidersWinDisplayText;
+
     public override void OnNetworkSpawn()
     {
+        GameManager.Instance.RegisterPlayer(OwnerClientId, gameObject);
+        playerId = OwnerClientId;
+
         if (!IsOwner)
         {
-            // Disable input for non-owners instead of destroying the script
             enabled = false;
             return;
         }
@@ -35,6 +57,12 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    public override void OnNetworkDespawn()
+    {
+        GameManager.Instance.UnregisterPlayer(OwnerClientId);
+        playerId = OwnerClientId;
+    }
+
     void Start()
     {
         if (IsOwner)
@@ -42,11 +70,83 @@ public class PlayerController : NetworkBehaviour
             Cursor.lockState = CursorLockMode.Locked;
         }
     }
-
-    void FixedUpdate()
+    
+    void Update()
     {
         if (!IsOwner) return; // Ensure only the owner processes input
 
+        if (GameManager.Instance.gameState.Value == GameManager.GameState.OUTOFGAME)
+        {
+            if (Vector3.Distance(spawn, gameObject.transform.position) > distanceLiableFromSpawn)
+            {
+                gameObject.transform.position = spawn;
+            }
+            else
+            {
+                hidersWinDisplayText.SetActive(false);
+                seekersWinDisplayText.SetActive(false);
+                updateMovement();
+                updateCrosshair();
+                handleInput();
+            }
+        }
+        else if (GameManager.Instance.gameState.Value == GameManager.GameState.SPAWNPHASE)
+        {
+            blackout.SetActive(true);
+            gameObject.transform.position = spawnLocation + new Vector3(UnityEngine.Random.Range(0, randomrange), 0, UnityEngine.Random.Range(0, randomrange));
+        }
+        else if (GameManager.Instance.gameState.Value == GameManager.GameState.HIDERPHASE)
+        {
+            if (!IsSeeker.Value)
+            {
+                if (blackout.activeSelf)
+                {
+                    blackout.SetActive(false);
+                }
+                updateMovement();
+                handleInput();
+            }
+            updateCrosshair();
+
+        }
+        else if (GameManager.Instance.gameState.Value == GameManager.GameState.SEEKERPHASE)
+        {
+            if (blackout.activeSelf)
+            {
+                blackout.SetActive(false);
+            }
+            updateMovement();
+            updateCrosshair();
+            handleInput();
+        }
+        else if (GameManager.Instance.gameState.Value == GameManager.GameState.DISPLAYWINNER)
+        {
+            if (GameManager.Instance.gameWinners.Value == GameManager.GameWinners.HIDERS)
+            {
+                hidersWinDisplayText.SetActive(true);
+            }
+            else
+            {
+                seekersWinDisplayText.SetActive(true);
+            }
+
+            updateMovement();
+            updateCrosshair();
+            handleInput();
+        }
+        
+        
+        updateTimer();
+    }
+
+    void updateTimer()
+    {
+        TimeSpan time = TimeSpan.FromSeconds(GameManager.Instance.gameTime.Value);
+        timer.text = time.ToString("mm':'ss");
+    }
+
+    void updateMovement()
+    {
         // Mouse look
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
@@ -63,7 +163,14 @@ public class PlayerController : NetworkBehaviour
         float moveZ = Input.GetAxis("Vertical");
 
         Vector3 move = transform.right * moveX + transform.forward * moveZ;
-        controller.Move(move * speed * Time.deltaTime);
+        if (IsSeeker.Value)
+        {
+            controller.Move(move * seekerSpeed * Time.deltaTime);
+        }
+        else
+        {
+            controller.Move(move * speed * Time.deltaTime);
+        }
 
         // Jumping
         if (isGrounded && Input.GetButtonDown("Jump"))
@@ -74,18 +181,66 @@ public class PlayerController : NetworkBehaviour
         // Gravity
         velocity.y -= gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
+    }
 
-        crosshairhorizontal.color = Color.white;
-        crosshairvertical.color = Color.white;
-
+    void updateCrosshair()
+    {
         RaycastHit hit;
-        if (Physics.Raycast(transform.position, transform.TransformDirection(Vector3.forward), out hit, raycastlength))
+        if (Physics.Raycast(playerCamera.transform.position, playerCamera.transform.rotation * Vector3.forward, out hit, raycastlength))
         {
+            var button = hit.transform.GetComponent<ButtonScript>();
             var script = hit.transform.GetComponent<PlayerController>();
-            if (script != null)
+            if ((IsHost && button != null) || (IsSeeker.Value && script != null && !script.IsSeeker.Value))
             {
                 crosshairhorizontal.color = Color.red;
                 crosshairvertical.color = Color.red;
+            }
+            else
+            {
+                crosshairhorizontal.color = Color.white;
+                crosshairvertical.color = Color.white;
+            }
+        }
+        else
+        {
+            crosshairhorizontal.color = Color.white;
+            crosshairvertical.color = Color.white;
+        }
+    }
+
+    void handleInput()
+    {
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            RaycastHit hit;
+            if (Physics.Raycast(playerCamera.transform.position, playerCamera.transform.rotation * Vector3.forward, out hit, raycastlength))
+            {
+                var button = hit.transform.GetComponent<ButtonScript>();
+                var script = hit.transform.GetComponent<PlayerController>();
+                if (IsHost && button != null)
+                {
+                    GameManager.Instance.StartGame();
+                }
+                else if (IsSeeker.Value && script != null && !script.IsSeeker.Value)
+                {
+                    ChangeRoleForPlayerServerRpc(script.playerId, true);
+                }
+            }
+        }
+    }
+
+
+    // This function is what essentially changes a person from seeker to hider.
+    [ServerRpc(RequireOwnership = false)]
+    private void ChangeRoleForPlayerServerRpc(ulong targetClientId, bool newValue, ServerRpcParams rpcParams = default)
+    {
+        if (NetworkManager.Singleton.ConnectedClients.ContainsKey(targetClientId))
+        {
+            PlayerController targetPlayer = NetworkManager.Singleton.ConnectedClients[targetClientId].PlayerObject.GetComponent<PlayerController>();
+
+            if (targetPlayer != null)
+            {
+                targetPlayer.IsSeeker.Value = newValue; 
             }
         }
     }
