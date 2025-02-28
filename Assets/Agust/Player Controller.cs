@@ -13,6 +13,7 @@ public class PlayerController : NetworkBehaviour
     private bool isGrounded;
     public GameObject playerCamera;
     private float verticalRotation = 0f;
+    Animator PlayerAnimation;
 
     public override void OnNetworkSpawn()
     {
@@ -34,6 +35,7 @@ public class PlayerController : NetworkBehaviour
         {
             Cursor.lockState = CursorLockMode.Locked;
         }
+        PlayerAnimation = GetComponent<Animator>();
     }
 
     void FixedUpdate()
@@ -55,7 +57,16 @@ public class PlayerController : NetworkBehaviour
         float moveX = Input.GetAxis("Horizontal");
         float moveZ = Input.GetAxis("Vertical");
 
+
         Vector3 move = transform.right * moveX + transform.forward * moveZ;
+        if (move != new Vector3(0,0,0))
+        {
+            PlayerAnimation.SetBool("isWalking",true);
+        }
+        else
+        {
+            PlayerAnimation.SetBool("isWalking",false);
+        }
         controller.Move(move * speed * Time.deltaTime);
 
         // Jumping
