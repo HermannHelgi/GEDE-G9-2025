@@ -28,17 +28,7 @@ public class PlayerController : NetworkBehaviour
     private bool isGrounded;
     public GameObject playerCamera;
     private float verticalRotation = 0f;
-
-    public Vector3 spawnLocation;
-    public float randomrange;
-    public ulong playerId;
-    public TextMeshProUGUI timer;
-    public GameObject blackout;
-    public float distanceLiableFromSpawn;
-    public Vector3 spawn;
-
-    public GameObject seekersWinDisplayText;
-    public GameObject hidersWinDisplayText;
+    Animator PlayerAnimation;
 
     public override void OnNetworkSpawn()
     {
@@ -69,6 +59,7 @@ public class PlayerController : NetworkBehaviour
         {
             Cursor.lockState = CursorLockMode.Locked;
         }
+        PlayerAnimation = GetComponent<Animator>();
     }
     
     void Update()
@@ -162,15 +153,17 @@ public class PlayerController : NetworkBehaviour
         float moveX = Input.GetAxis("Horizontal");
         float moveZ = Input.GetAxis("Vertical");
 
+
         Vector3 move = transform.right * moveX + transform.forward * moveZ;
-        if (IsSeeker.Value)
+        if (move != new Vector3(0,0,0))
         {
-            controller.Move(move * seekerSpeed * Time.deltaTime);
+            PlayerAnimation.SetBool("isWalking",true);
         }
         else
         {
-            controller.Move(move * speed * Time.deltaTime);
+            PlayerAnimation.SetBool("isWalking",false);
         }
+        controller.Move(move * speed * Time.deltaTime);
 
         // Jumping
         if (isGrounded && Input.GetButtonDown("Jump"))
